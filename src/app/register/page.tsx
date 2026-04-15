@@ -79,7 +79,7 @@ export default function RegisterPage() {
                     </div>
                     <div className="form-group">
                         <label>Password</label>
-                        <input type="password" placeholder="Min. 6 characters" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
+                        <input type="password" placeholder="Min. 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
                     </div>
                     <button type="submit" className="btn-primary" disabled={loading}>
                         {loading ? 'Creating account...' : 'Create Account'}

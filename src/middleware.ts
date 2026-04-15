@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/register', '/api/auth/login', '/api/auth/register'];
-const API_PATHS = ['/api/'];
+const PUBLIC_PATHS = ['/login', '/register'];
+const PUBLIC_API_PATHS = [
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/telemetry',      // Open for ESP32 hardware (has its own API key auth)
+    '/api/telemetry/history',
+    '/api/events',
+];
 
 export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
-    // Allow public paths
-    if (PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
+    // Allow public pages
+    if (PUBLIC_PATHS.some(p => pathname === p)) {
         return NextResponse.next();
     }
 
-    // Allow API routes (they handle their own auth or are telemetry endpoints for ESP32)
-    if (API_PATHS.some(p => pathname.startsWith(p))) {
+    // Allow whitelisted API routes
+    if (PUBLIC_API_PATHS.some(p => pathname.startsWith(p))) {
         return NextResponse.next();
     }
 
@@ -21,11 +27,14 @@ export function middleware(request: NextRequest) {
         return NextResponse.next();
     }
 
-    // Check for session cookie
+    // Check for session cookie (existence check in middleware, full validation in API routes)
     const session = request.cookies.get('lumion_session');
     if (!session?.value) {
-        const loginUrl = new URL('/login', request.url);
-        return NextResponse.redirect(loginUrl);
+        // For API routes, return 401 instead of redirect
+        if (pathname.startsWith('/api/')) {
+            return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+        }
+        return NextResponse.redirect(new URL('/login', request.url));
     }
 
     return NextResponse.next();
