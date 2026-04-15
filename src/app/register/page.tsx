@@ -9,6 +9,7 @@ export default function RegisterPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [company, setCompany] = useState('');
+    const [inviteCode, setInviteCode] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -21,7 +22,7 @@ export default function RegisterPage() {
             const res = await fetch('/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email, password, company }),
+                body: JSON.stringify({ name, email, password, company, inviteCode }),
             });
 
             if (res.ok) {
@@ -43,52 +44,42 @@ export default function RegisterPage() {
             <div className="auth-card fade-in">
                 <div className="logo-section">
                     <h1>Lum<span>ion</span></h1>
-                    <p>Create your account</p>
+                    <p>Request access to the dashboard</p>
                 </div>
 
                 {error && <div className="auth-error">{error}</div>}
 
                 <form className="auth-form" onSubmit={handleSubmit}>
                     <div className="form-group">
-                        <label>Full Name</label>
+                        <label>Invite Code</label>
                         <input
                             type="text"
-                            placeholder="Darius Ferent"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Enter your invite code"
+                            value={inviteCode}
+                            onChange={(e) => setInviteCode(e.target.value)}
                             required
                             autoFocus
+                            style={{ fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.05em' }}
                         />
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            Contact your administrator for an invite code
+                        </span>
+                    </div>
+                    <div className="form-group">
+                        <label>Full Name</label>
+                        <input type="text" placeholder="Darius Ferent" value={name} onChange={(e) => setName(e.target.value)} required />
                     </div>
                     <div className="form-group">
                         <label>Email</label>
-                        <input
-                            type="email"
-                            placeholder="you@company.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                        />
+                        <input type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
                     </div>
                     <div className="form-group">
                         <label>Company (optional)</label>
-                        <input
-                            type="text"
-                            placeholder="Lumion Technologies"
-                            value={company}
-                            onChange={(e) => setCompany(e.target.value)}
-                        />
+                        <input type="text" placeholder="Lumion Technologies" value={company} onChange={(e) => setCompany(e.target.value)} />
                     </div>
                     <div className="form-group">
                         <label>Password</label>
-                        <input
-                            type="password"
-                            placeholder="Min. 6 characters"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            minLength={6}
-                        />
+                        <input type="password" placeholder="Min. 6 characters" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
                     </div>
                     <button type="submit" className="btn-primary" disabled={loading}>
                         {loading ? 'Creating account...' : 'Create Account'}

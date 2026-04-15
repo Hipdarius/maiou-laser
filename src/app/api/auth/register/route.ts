@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createUser, getUserByEmail, createSession } from '@/lib/db';
-import { getSessionCookieName } from '@/lib/auth';
+import { getSessionCookieName, isValidInviteCode, useInviteCode } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
-    const { email, password, name, company } = await request.json();
+    const { email, password, name, company, inviteCode } = await request.json();
 
     if (!email || !password || !name) {
         return NextResponse.json({ error: 'Name, email, and password are required' }, { status: 400 });
+    }
+
+    if (!inviteCode) {
+        return NextResponse.json({ error: 'An invite code is required to register' }, { status: 400 });
+    }
+
+    if (!isValidInviteCode(inviteCode)) {
+        return NextResponse.json({ error: 'Invalid or already used invite code' }, { status: 403 });
     }
 
     if (password.length < 6) {
@@ -19,6 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     const user = createUser(email, name, password, company);
+    useInviteCode(inviteCode);
     const token = createSession(user.id);
 
     const response = NextResponse.json({ user });

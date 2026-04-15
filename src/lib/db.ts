@@ -72,9 +72,28 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_telemetry_ts ON telemetry(timestamp);
     CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
     CREATE INDEX IF NOT EXISTS idx_events_ts ON events(timestamp);
+    CREATE TABLE IF NOT EXISTS invite_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE NOT NULL,
+      used INTEGER NOT NULL DEFAULT 0,
+      used_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_invite_codes ON invite_codes(code);
   `);
+
+    // Seed default invite codes if table is empty
+    const count = db.prepare('SELECT COUNT(*) as n FROM invite_codes').get() as { n: number };
+    if (count.n === 0) {
+        const codes = ['LUMION-2026', 'BEAM-ALPHA', 'IR-POWER-LUX', 'PHOTON-ACCESS', 'MAIOU-LASER'];
+        const stmt = db.prepare('INSERT INTO invite_codes (code) VALUES (?)');
+        for (const code of codes) {
+            stmt.run(code);
+        }
+    }
 }
 
 // ─── Password Hashing ──────────────────────────────────────────────────────
