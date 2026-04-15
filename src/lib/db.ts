@@ -1,15 +1,15 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import { TelemetryFrame, EventEntry } from './types';
+import { TelemetryFrame, EventEntry, User } from './types';
+import crypto from 'crypto';
 
 // ─── SQLite Connection ──────────────────────────────────────────────────────
-const DB_PATH = path.join(process.cwd(), 'data', 'beamdock.db');
+const DB_PATH = path.join(process.cwd(), 'data', 'lumion.db');
 
 let _db: Database.Database | null = null;
 
 export function getDb(): Database.Database {
     if (!_db) {
-        // Ensure data directory exists
         const fs = require('fs');
         const dir = path.dirname(DB_PATH);
         if (!fs.existsSync(dir)) {
@@ -26,6 +26,24 @@ export function getDb(): Database.Database {
 // ─── Schema ─────────────────────────────────────────────────────────────────
 function initSchema(db: Database.Database) {
     db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      company TEXT DEFAULT '',
+      password_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT UNIQUE NOT NULL,
+      user_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS telemetry (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       timestamp TEXT NOT NULL,
@@ -54,7 +72,118 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_telemetry_ts ON telemetry(timestamp);
     CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
     CREATE INDEX IF NOT EXISTS idx_events_ts ON events(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   `);
+}
+
+// ─── Password Hashing ──────────────────────────────────────────────────────
+function hashPassword(password: string): string {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+    return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+    const [salt, hash] = stored.split(':');
+    const verify = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+    return hash === verify;
+}
+
+// ─── User Operations ───────────────────────────────────────────────────────
+export function createUser(email: string, name: string, password: string, company?: string): User {
+    const db = getDb();
+    const passwordHash = hashPassword(password);
+    const stmt = db.prepare('INSERT INTO users (email, name, company, password_hash) VALUES (?, ?, ?, ?)');
+    const result = stmt.run(email, name, company || '', passwordHash);
+    return {
+        id: result.lastInsertRowid as number,
+        email,
+        name,
+        company: company || '',
+        created_at: new Date().toISOString(),
+    };
+}
+
+export function authenticateUser(email: string, password: string): User | null {
+    const db = getDb();
+    const row = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    if (!verifyPassword(password, row.password_hash as string)) return null;
+    return {
+        id: row.id as number,
+        email: row.email as string,
+        name: row.name as string,
+        company: row.company as string,
+        created_at: row.created_at as string,
+    };
+}
+
+export function getUserById(id: number): User | null {
+    const db = getDb();
+    const row = db.prepare('SELECT id, email, name, company, created_at FROM users WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+        id: row.id as number,
+        email: row.email as string,
+        name: row.name as string,
+        company: row.company as string,
+        created_at: row.created_at as string,
+    };
+}
+
+export function getUserByEmail(email: string): User | null {
+    const db = getDb();
+    const row = db.prepare('SELECT id, email, name, company, created_at FROM users WHERE email = ?').get(email) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+        id: row.id as number,
+        email: row.email as string,
+        name: row.name as string,
+        company: row.company as string,
+        created_at: row.created_at as string,
+    };
+}
+
+export function updateUser(id: number, fields: { name?: string; company?: string }): void {
+    const db = getDb();
+    if (fields.name !== undefined) {
+        db.prepare('UPDATE users SET name = ? WHERE id = ?').run(fields.name, id);
+    }
+    if (fields.company !== undefined) {
+        db.prepare('UPDATE users SET company = ? WHERE id = ?').run(fields.company, id);
+    }
+}
+
+// ─── Session (Auth) Operations ─────────────────────────────────────────────
+export function createSession(userId: number): string {
+    const db = getDb();
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
+    db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)').run(token, userId, expiresAt);
+    return token;
+}
+
+export function getUserFromToken(token: string): User | null {
+    const db = getDb();
+    const row = db.prepare(`
+    SELECT u.id, u.email, u.name, u.company, u.created_at
+    FROM sessions s JOIN users u ON s.user_id = u.id
+    WHERE s.token = ? AND s.expires_at > datetime('now')
+  `).get(token) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+        id: row.id as number,
+        email: row.email as string,
+        name: row.name as string,
+        company: row.company as string,
+        created_at: row.created_at as string,
+    };
+}
+
+export function deleteSession(token: string): void {
+    const db = getDb();
+    db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
 }
 
 // ─── Telemetry Operations ───────────────────────────────────────────────────
@@ -118,4 +247,22 @@ export function getEvents(limit: number = 50): EventEntry[] {
 export function getEventsBySession(sessionId: string): EventEntry[] {
     const db = getDb();
     return db.prepare('SELECT * FROM events WHERE session_id = ? ORDER BY id DESC').all(sessionId) as EventEntry[];
+}
+
+// ─── Telemetry Session Summaries ────────────────────────────────────────────
+export function getSessionSummaries() {
+    const db = getDb();
+    return db.prepare(`
+    SELECT
+      session_id,
+      MIN(timestamp) as started_at,
+      COUNT(*) as frame_count,
+      MAX(energy_delivered_j) as total_energy_j,
+      MAX(received_power) as peak_power_w,
+      (SELECT COUNT(*) FROM events e WHERE e.session_id = t.session_id) as event_count
+    FROM telemetry t
+    GROUP BY session_id
+    ORDER BY MIN(timestamp) DESC
+    LIMIT 50
+  `).all();
 }

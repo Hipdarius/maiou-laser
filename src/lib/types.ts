@@ -1,4 +1,4 @@
-// ─── BeamDock Telemetry Types ───────────────────────────────────────────────
+// ─── Lumion Telemetry Types ─────────────────────────────────────────────────
 // Shared between firmware, backend, and frontend.
 // When ESP32 hardware arrives, it will POST the same TelemetryFrame shape.
 
@@ -32,4 +32,12 @@ export interface SessionSummary {
     total_energy_j: number;
     peak_power_w: number;
     event_count: number;
+}
+
+export interface User {
+    id: number;
+    email: string;
+    name: string;
+    company?: string;
+    created_at: string;
 }
