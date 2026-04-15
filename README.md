@@ -10,13 +10,15 @@ Lumion is a real-time SaaS dashboard for monitoring infrared wireless power tran
 
 ## Features
 
-- **Live Telemetry Dashboard** — Real-time monitoring of power, voltage, current, temperature, and beam status at 1 Hz refresh rate
+- **Live Telemetry Dashboard** — Real-time monitoring of power, voltage, current, temperature, and beam status with optimized 2-3s polling
 - **Device Status** — Detailed view of transmitter (940 nm IR LED array), receiver (silicon PV panel), and ESP32 microcontroller
 - **Analytics** — Historical charts with configurable time windows (1 min, 2 min, 5 min), summary statistics, and efficiency tracking
 - **Event Log** — Safety events, system alerts, and session activity with severity filtering (info/warning/critical)
 - **Session History** — Browse past power beaming sessions with peak power, total energy, and duration metrics
-- **User Authentication** — Login/register system with secure password hashing (PBKDF2), session tokens, and cookie-based auth
+- **Invite-Only Authentication** — Secure registration requiring invite codes, PBKDF2 password hashing, HTTP-only session cookies, and route-level middleware protection
 - **Account Settings** — User profile management with company information
+- **Hardware-Ready Architecture** — POST endpoint for ESP32 telemetry with automatic simulator/hardware mode switching. When real hardware data arrives, the simulator stops; when hardware goes offline, it falls back automatically
+- **Supabase-Ready** — Optional Supabase integration via environment variables; falls back to local SQLite in development
 - **Simulated Telemetry** — Realistic power-beaming physics simulation with lifecycle phases (startup, ramp-up, steady state, perturbation, cooldown)
 
 ---
@@ -177,14 +179,55 @@ Every telemetry frame contains:
 
 ---
 
-## Hardware Integration Path
+## Hardware Integration
 
-When ESP32 hardware arrives:
+The architecture is designed for zero-friction hardware integration. When the ESP32 is ready:
 
-1. Flash firmware that POSTs `TelemetryFrame` JSON to `/api/telemetry`
-2. Add a POST handler to the existing API route
-3. Disable the simulator
-4. Same dashboard, real data
+1. **Flash firmware** that POSTs JSON to `POST /api/telemetry`
+2. **That's it.** The simulator stops automatically when real data arrives
+
+### ESP32 Firmware Example
+
+```cpp
+// POST telemetry every second
+HTTPClient http;
+http.begin("http://<dashboard-ip>:3000/api/telemetry");
+http.addHeader("Content-Type", "application/json");
+
+String json = "{";
+json += "\"session_id\":\"esp32-001\",";
+json += "\"receiver_voltage\":" + String(voltage) + ",";
+json += "\"receiver_current\":" + String(current) + ",";
+json += "\"supercap_voltage\":" + String(supercapV) + ",";
+json += "\"distance_cm\":" + String(distance) + ",";
+json += "\"temperature_c\":" + String(temp);
+json += "}";
+
+http.POST(json);
+```
+
+The dashboard automatically:
+- Stops the simulator when hardware data arrives
+- Shows "HARDWARE" mode indicator in the navbar
+- Falls back to simulator if no data for 10 seconds
+- Computes derived fields (received_power = V x A) server-side
+
+### Invite Codes
+
+Registration requires an invite code. Default codes seeded on first run:
+`LUMION-2026`, `BEAM-ALPHA`, `IR-POWER-LUX`, `PHOTON-ACCESS`, `MAIOU-LASER`
+
+Each code is single-use. Manage codes in the SQLite database or via Supabase when configured.
+
+### Supabase Setup (Optional)
+
+Copy `.env.example` to `.env.local` and add your Supabase credentials:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
 
 ---
 
