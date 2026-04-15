@@ -13,7 +13,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('lumion-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}` }} />
+      </head>
       <body>
         <LayoutShell>{children}</LayoutShell>
       </body>

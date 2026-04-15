@@ -65,6 +65,37 @@
   --shadow-glow-green: 0 0 20px rgba(63, 185, 80, 0.15);
 }
 
+/* ─── Light Mode ─────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-primary: #f5f6f8;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0f1f3;
+  --bg-surface: #f5f6f8;
+
+  --border-primary: #d0d7de;
+  --border-subtle: #e1e4e8;
+
+  --text-primary: #1f2328;
+  --text-secondary: #656d76;
+  --text-muted: #8b949e;
+
+  --gradient-card: linear-gradient(145deg, rgba(255,255,255,0.9) 0%, rgba(245,246,248,0.95) 100%);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] body::before {
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(245, 166, 35, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(245, 166, 35, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(63, 185, 80, 0.03) 0%, transparent 50%);
+}
+
+[data-theme="light"] .auth-card {
+  background: #ffffff;
+  border-color: var(--border-primary);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -263,14 +294,10 @@ body::before {
 }
 
 .navbar-brand .logo-icon {
-  width: 32px;
-  height: 32px;
-  background: var(--gradient-beam);
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
+  object-fit: cover;
   animation: pulse-glow 3s ease-in-out infinite;
 }
 
@@ -375,6 +402,25 @@ body::before {
   background: rgba(248, 81, 73, 0.1);
   border-color: rgba(248, 81, 73, 0.3);
   color: var(--color-critical);
+}
+
+.btn-theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  margin-left: 12px;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.btn-theme-toggle:hover {
+  background: var(--lumion-orange-dim);
+  border-color: var(--lumion-orange);
+  color: var(--lumion-orange);
 }
 
 /* ─── Page Header ────────────────────────────────────────────────────────── */

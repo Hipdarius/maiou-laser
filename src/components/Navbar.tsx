@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 
@@ -32,6 +33,7 @@ export default function Navbar() {
     const [sim, setSim] = useState<SimStatus | null>(null);
     const [hw, setHw] = useState<HardwareStatus | null>(null);
     const [user, setUser] = useState<User | null>(null);
+    const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
     const fetchSim = useCallback(async () => {
         try {
@@ -61,9 +63,24 @@ export default function Navbar() {
         return () => clearInterval(interval);
     }, [fetchSim, fetchUser]);
 
+    useEffect(() => {
+        const saved = localStorage.getItem('lumion-theme') as 'dark' | 'light' | null;
+        if (saved) {
+            setTheme(saved);
+            document.documentElement.setAttribute('data-theme', saved);
+        }
+    }, []);
+
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST' });
         router.push('/login');
+    };
+
+    const toggleTheme = () => {
+        const next = theme === 'dark' ? 'light' : 'dark';
+        setTheme(next);
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('lumion-theme', next);
     };
 
     const links = [
@@ -81,7 +98,7 @@ export default function Navbar() {
     return (
         <nav className="navbar">
             <Link href="/" className="navbar-brand">
-                <div className="logo-icon">⚡</div>
+                <Image src="/lumion-logo.jpg" alt="Lumion" width={36} height={36} className="logo-icon" />
                 <div>
                     <h1>Lum<span className="brand-highlight">ion</span></h1>
                     <span className="sub">Wireless Power Through Light</span>
@@ -113,6 +130,10 @@ export default function Navbar() {
                 ) : (
                     <span className="mono">SIM ACTIVE</span>
                 )}
+
+                <button className="btn-theme-toggle" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+                    {theme === 'dark' ? '☀' : '🌙'}
+                </button>
 
                 {user && (
                     <div className="navbar-user" style={{ marginLeft: 16 }}>

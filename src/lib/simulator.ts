@@ -1,6 +1,16 @@
 import { v4 as uuidv4 } from 'uuid';
 import { TelemetryFrame, EventEntry } from './types';
-import { insertTelemetry, insertEvent, getLatestTelemetry, getTelemetryHistory, getEvents } from './db';
+import { insertTelemetry as sqliteInsertTelemetry, insertEvent as sqliteInsertEvent, getLatestTelemetry, getTelemetryHistory, getEvents } from './db';
+import { data } from './data-provider';
+
+// Write through data-provider (Supabase in prod, SQLite locally)
+// Falls back to direct SQLite if data-provider fails
+function insertTelemetry(frame: TelemetryFrame) {
+    data.insertTelemetry(frame).catch(() => sqliteInsertTelemetry(frame));
+}
+function insertEvent(event: EventEntry) {
+    data.insertEvent(event).catch(() => sqliteInsertEvent(event));
+}
 
 // ─── Lumion Telemetry Simulator ─────────────────────────────────────────────
 // Generates realistic power-beaming telemetry: ramp-up, steady state,
