@@ -7,7 +7,6 @@ import { getHardwareMode, recordHardwareFrame } from '@/lib/hardware';
 export async function GET() {
     const hwMode = getHardwareMode();
 
-    // Auto-start simulator only if NOT in hardware mode
     if (!hwMode.active && !isRunning()) {
         startSimulator();
     }
@@ -17,7 +16,7 @@ export async function GET() {
 
     if (!frame) {
         return NextResponse.json(
-            { error: 'No telemetry data yet', simulator: status, hardware_mode: hwMode },
+            { error: 'No telemetry data yet', _simulator: status, _hardware: hwMode },
             { status: 202 }
         );
     }
@@ -29,16 +28,25 @@ export async function GET() {
     });
 }
 
+// Simple rate limiter for POST (max 5 req/sec per IP)
+const postRates = new Map<string, number[]>();
+
+function checkPostRate(ip: string): boolean {
+    const now = Date.now();
+    const timestamps = postRates.get(ip) || [];
+    const recent = timestamps.filter(t => now - t < 1000);
+    if (recent.length >= 5) return false;
+    recent.push(now);
+    postRates.set(ip, recent);
+    return true;
+}
+
 // POST /api/telemetry — receive telemetry from ESP32 hardware
-// This is the endpoint the ESP32 firmware will call.
-// When data arrives here, the simulator automatically stops.
+// Requires HARDWARE_API_KEY header when configured, open otherwise (for dev).
 //
-// Expected JSON body (TelemetryFrame):
+// Expected JSON body:
 // {
 //   "session_id": "hw-001",
-//   "transmitter_on": true,
-//   "beam_locked": true,
-//   "safety_ok": true,
 //   "receiver_voltage": 5.1,
 //   "receiver_current": 0.82,
 //   "supercap_voltage": 1.4,
@@ -46,33 +54,42 @@ export async function GET() {
 //   "temperature_c": 34.5
 // }
 export async function POST(request: NextRequest) {
+    // Rate limiting
+    const ip = request.headers.get('x-forwarded-for') || 'unknown';
+    if (!checkPostRate(ip)) {
+        return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+    }
+
+    // API key check (only when HARDWARE_API_KEY is configured)
+    const requiredKey = process.env.HARDWARE_API_KEY;
+    if (requiredKey) {
+        const providedKey = request.headers.get('x-hardware-key');
+        if (providedKey !== requiredKey) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+    }
+
     try {
         const body = await request.json();
 
-        // Validate required fields
         const required = ['session_id', 'receiver_voltage', 'receiver_current'];
         for (const field of required) {
             if (body[field] === undefined) {
-                return NextResponse.json(
-                    { error: `Missing required field: ${field}` },
-                    { status: 400 }
-                );
+                return NextResponse.json({ error: `Missing required field: ${field}` }, { status: 400 });
             }
         }
 
-        // Stop the simulator when real hardware data arrives
         if (isRunning()) {
             stopSimulator();
         }
 
-        // Compute derived fields
         const voltage = Number(body.receiver_voltage) || 0;
         const current = Number(body.receiver_current) || 0;
         const power = voltage * current;
 
         const frame = {
             timestamp: body.timestamp || new Date().toISOString(),
-            session_id: String(body.session_id),
+            session_id: String(body.session_id).slice(0, 64),
             transmitter_on: Boolean(body.transmitter_on ?? true),
             beam_locked: Boolean(body.beam_locked ?? true),
             safety_ok: Boolean(body.safety_ok ?? true),
@@ -89,10 +106,7 @@ export async function POST(request: NextRequest) {
         recordHardwareFrame();
 
         return NextResponse.json({ ok: true, frame });
-    } catch (e) {
-        return NextResponse.json(
-            { error: 'Invalid JSON body', details: String(e) },
-            { status: 400 }
-        );
+    } catch {
+        return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
     }
 }
