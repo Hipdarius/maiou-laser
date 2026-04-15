@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getSessionSummaries } from '@/lib/db';
 import { startSimulator, isRunning } from '@/lib/simulator';
+import { data } from '@/lib/data-provider';
 
 export async function GET() {
     if (!isRunning()) {
         startSimulator();
     }
 
-    const sessions = getSessionSummaries();
+    const sessions = await data.getSessionSummaries();
     return NextResponse.json({ sessions });
 }

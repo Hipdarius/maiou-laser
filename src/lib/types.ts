@@ -41,3 +41,16 @@ export interface User {
     company?: string;
     created_at: string;
 }
+
+export interface Device {
+    id: number;
+    user_id: number;
+    name: string;
+    type: 'transmitter' | 'receiver' | 'mcu';
+    status: 'online' | 'offline' | 'error';
+    firmware_version: string;
+    api_key?: string;
+    config: Record<string, unknown>;
+    last_seen_at?: string;
+    created_at: string;
+}

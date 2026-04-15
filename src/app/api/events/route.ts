@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { startSimulator, isRunning, getEvents } from '@/lib/simulator';
+import { startSimulator, isRunning } from '@/lib/simulator';
+import { data } from '@/lib/data-provider';
 
 // GET /api/events?limit=50 — returns recent event log entries
 export async function GET(request: NextRequest) {
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200);
 
-    const events = getEvents(limit);
+    const events = await data.getEvents(limit);
 
     return NextResponse.json({
         count: events.length,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { startSimulator, stopSimulator, isRunning, getLatestTelemetry, getSimulatorStatus } from '@/lib/simulator';
-import { insertTelemetry } from '@/lib/db';
+import { startSimulator, stopSimulator, isRunning, getSimulatorStatus } from '@/lib/simulator';
+import { data } from '@/lib/data-provider';
 import { getHardwareMode, recordHardwareFrame } from '@/lib/hardware';
 
 // GET /api/telemetry — returns the latest telemetry frame
@@ -11,7 +11,7 @@ export async function GET() {
         startSimulator();
     }
 
-    const frame = getLatestTelemetry();
+    const frame = await data.getLatestTelemetry();
     const status = getSimulatorStatus();
 
     if (!frame) {
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
             temperature_c: Number(body.temperature_c) || 0,
         };
 
-        insertTelemetry(frame);
+        await data.insertTelemetry(frame);
         recordHardwareFrame();
 
         return NextResponse.json({ ok: true, frame });
