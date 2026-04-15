@@ -9,6 +9,11 @@ interface SimStatus {
     tick: number;
 }
 
+interface HardwareStatus {
+    active: boolean;
+    source: 'hardware' | 'simulator';
+}
+
 interface User {
     id: number;
     email: string;
@@ -25,6 +30,7 @@ export default function Navbar() {
     const pathname = usePathname();
     const router = useRouter();
     const [sim, setSim] = useState<SimStatus | null>(null);
+    const [hw, setHw] = useState<HardwareStatus | null>(null);
     const [user, setUser] = useState<User | null>(null);
 
     const fetchSim = useCallback(async () => {
@@ -33,6 +39,7 @@ export default function Navbar() {
             if (res.ok) {
                 const data = await res.json();
                 if (data._simulator) setSim(data._simulator);
+                if (data._hardware) setHw(data._hardware);
             }
         } catch { /* silent */ }
     }, []);
@@ -95,8 +102,10 @@ export default function Navbar() {
             </div>
 
             <div className="navbar-status">
-                <div className="pulse-dot" />
-                {phase ? (
+                <div className="pulse-dot" style={hw?.active ? { background: 'var(--color-online)' } : {}} />
+                {hw?.active ? (
+                    <span className="mono" style={{ color: 'var(--color-online)' }}>HARDWARE</span>
+                ) : phase ? (
                     <>
                         <span className={`mono phase-${phase}`}>{phase.toUpperCase()}</span>
                         {sim && <span className="navbar-tick">{formatTick(sim.tick)}</span>}
