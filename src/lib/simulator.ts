@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { TelemetryFrame, EventEntry } from './types';
 import { insertTelemetry, insertEvent, getLatestTelemetry, getTelemetryHistory, getEvents } from './db';
 
-// ─── BeamDock Telemetry Simulator ───────────────────────────────────────────
+// ─── Lumion Telemetry Simulator ─────────────────────────────────────────────
 // Generates realistic power-beaming telemetry: ramp-up, steady state,
 // perturbations, beam-loss events, and thermal drift.
 
