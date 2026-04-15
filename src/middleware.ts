@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { updateSession } from '@/utils/supabase/middleware';
 
 const PUBLIC_PATHS = ['/login', '/register'];
 const PUBLIC_API_PATHS = [
     '/api/auth/login',
     '/api/auth/register',
-    '/api/telemetry',      // Open for ESP32 hardware (has its own API key auth)
+    '/api/telemetry',
     '/api/telemetry/history',
     '/api/events',
 ];
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // Allow public pages
     if (PUBLIC_PATHS.some(p => pathname === p)) {
-        return NextResponse.next();
+        return updateSession(request);
     }
 
     // Allow whitelisted API routes
@@ -27,17 +28,17 @@ export function middleware(request: NextRequest) {
         return NextResponse.next();
     }
 
-    // Check for session cookie (existence check in middleware, full validation in API routes)
+    // Check for session cookie
     const session = request.cookies.get('lumion_session');
     if (!session?.value) {
-        // For API routes, return 401 instead of redirect
         if (pathname.startsWith('/api/')) {
             return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
         }
         return NextResponse.redirect(new URL('/login', request.url));
     }
 
-    return NextResponse.next();
+    // Refresh Supabase session if configured
+    return updateSession(request);
 }
 
 export const config = {

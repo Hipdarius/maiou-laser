@@ -1,4 +1,4 @@
-import { isSupabaseEnabled, getSupabase } from './supabase';
+import { isSupabaseEnabled } from './supabase';
 import { User } from './types';
 import crypto from 'crypto';
 
@@ -6,10 +6,29 @@ import crypto from 'crypto';
 // Abstracts auth operations. Uses Supabase when configured (Vercel production),
 // falls back to local SQLite (local dev with hardware).
 
+// ─── Password Hashing (shared) ──────────────────────────────────────────────
+
+function hashPassword(password: string): string {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+    return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+    const [salt, hash] = stored.split(':');
+    const verify = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+    return hash === verify;
+}
+
 // ─── Supabase implementation ────────────────────────────────────────────────
 
+async function getSupabaseServer() {
+    const { createClient } = await import('@/utils/supabase/server');
+    return createClient();
+}
+
 async function supabaseCreateUser(email: string, name: string, password: string, company?: string): Promise<User> {
-    const sb = getSupabase();
+    const sb = await getSupabaseServer();
     const passwordHash = hashPassword(password);
     const { data, error } = await sb.from('users').insert({
         email, name, company: company || '', password_hash: passwordHash,
@@ -19,7 +38,7 @@ async function supabaseCreateUser(email: string, name: string, password: string,
 }
 
 async function supabaseAuthenticateUser(email: string, password: string): Promise<User | null> {
-    const sb = getSupabase();
+    const sb = await getSupabaseServer();
     const { data } = await sb.from('users').select('*').eq('email', email).single();
     if (!data) return null;
     if (!verifyPassword(password, data.password_hash)) return null;
@@ -27,19 +46,19 @@ async function supabaseAuthenticateUser(email: string, password: string): Promis
 }
 
 async function supabaseGetUserById(id: number): Promise<User | null> {
-    const sb = getSupabase();
+    const sb = await getSupabaseServer();
     const { data } = await sb.from('users').select('id, email, name, company, created_at').eq('id', id).single();
     return data as User | null;
 }
 
 async function supabaseGetUserByEmail(email: string): Promise<User | null> {
-    const sb = getSupabase();
+    const sb = await getSupabaseServer();
     const { data } = await sb.from('users').select('id, email, name, company, created_at').eq('email', email).single();
     return data as User | null;
 }
 
 async function supabaseUpdateUser(id: number, fields: { name?: string; company?: string }): Promise<void> {
-    const sb = getSupabase();
+    const sb = await getSupabaseServer();
     const update: Record<string, string> = {};
     if (fields.name !== undefined) update.name = fields.name;
     if (fields.company !== undefined) update.company = fields.company;
@@ -47,7 +66,7 @@ async function supabaseUpdateUser(id: number, fields: { name?: string; company?:
 }
 
 async function supabaseCreateSession(userId: number): Promise<string> {
-    const sb = getSupabase();
+    const sb = await getSupabaseServer();
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     await sb.from('auth_sessions').insert({ token, user_id: userId, expires_at: expiresAt });
@@ -55,7 +74,7 @@ async function supabaseCreateSession(userId: number): Promise<string> {
 }
 
 async function supabaseGetUserFromToken(token: string): Promise<User | null> {
-    const sb = getSupabase();
+    const sb = await getSupabaseServer();
     const { data } = await sb.from('auth_sessions').select('user_id, expires_at').eq('token', token).single();
     if (!data) return null;
     if (new Date(data.expires_at) < new Date()) return null;
@@ -63,18 +82,18 @@ async function supabaseGetUserFromToken(token: string): Promise<User | null> {
 }
 
 async function supabaseDeleteSession(token: string): Promise<void> {
-    const sb = getSupabase();
+    const sb = await getSupabaseServer();
     await sb.from('auth_sessions').delete().eq('token', token);
 }
 
 async function supabaseIsValidInviteCode(code: string): Promise<boolean> {
-    const sb = getSupabase();
+    const sb = await getSupabaseServer();
     const { data } = await sb.from('invite_codes').select('id').eq('code', code).eq('used', false).single();
     return !!data;
 }
 
 async function supabaseUseInviteCode(code: string): Promise<boolean> {
-    const sb = getSupabase();
+    const sb = await getSupabaseServer();
     const { data } = await sb.from('invite_codes').select('id').eq('code', code).eq('used', false).single();
     if (!data) return false;
     await sb.from('invite_codes').update({ used: true, used_at: new Date().toISOString() }).eq('id', data.id);
@@ -84,7 +103,6 @@ async function supabaseUseInviteCode(code: string): Promise<boolean> {
 // ─── SQLite implementation ──────────────────────────────────────────────────
 
 function getSqliteDb() {
-    // Dynamic import to avoid loading better-sqlite3 on Vercel
     const { getDb } = require('./db');
     return getDb();
 }
@@ -153,20 +171,6 @@ function sqliteUseInviteCode(code: string): boolean {
     if (!row) return false;
     db.prepare("UPDATE invite_codes SET used = 1, used_at = datetime('now') WHERE id = ?").run(row.id);
     return true;
-}
-
-// ─── Password Hashing (shared) ──────────────────────────────────────────────
-
-function hashPassword(password: string): string {
-    const salt = crypto.randomBytes(16).toString('hex');
-    const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-    return `${salt}:${hash}`;
-}
-
-function verifyPassword(password: string, stored: string): boolean {
-    const [salt, hash] = stored.split(':');
-    const verify = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-    return hash === verify;
 }
 
 // ─── Exported API (auto-selects Supabase or SQLite) ─────────────────────────
