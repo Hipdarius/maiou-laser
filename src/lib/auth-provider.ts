@@ -103,8 +103,12 @@ async function supabaseUseInviteCode(code: string): Promise<boolean> {
 // ─── SQLite implementation ──────────────────────────────────────────────────
 
 function getSqliteDb() {
-    const { getDb } = require('./db');
-    return getDb();
+    try {
+        const { getDb } = require('./db');
+        return getDb();
+    } catch {
+        throw new Error('SQLite not available — set Supabase env vars for production');
+    }
 }
 
 function sqliteCreateUser(email: string, name: string, password: string, company?: string): User {

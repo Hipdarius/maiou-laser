@@ -179,8 +179,12 @@ async function sbDeleteDevice(id: number): Promise<void> {
 // ─── SQLite implementations ────────────────────────────────────────────────
 
 function getSqlite() {
-    const { insertTelemetry, getLatestTelemetry, getTelemetryHistory, insertEvent, getEvents, getEventsBySession, getSessionSummaries } = require('./db');
-    return { insertTelemetry, getLatestTelemetry, getTelemetryHistory, insertEvent, getEvents, getEventsBySession, getSessionSummaries };
+    try {
+        const { insertTelemetry, getLatestTelemetry, getTelemetryHistory, insertEvent, getEvents, getEventsBySession, getSessionSummaries } = require('./db');
+        return { insertTelemetry, getLatestTelemetry, getTelemetryHistory, insertEvent, getEvents, getEventsBySession, getSessionSummaries };
+    } catch {
+        throw new Error('SQLite not available — set Supabase env vars for production');
+    }
 }
 
 // ─── Exported API (auto-selects Supabase or SQLite) ────────────────────────
