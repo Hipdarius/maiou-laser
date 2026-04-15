@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import StatCard from '@/components/StatCard';
 import StatusBadge from '@/components/StatusBadge';
 import TelemetryChart from '@/components/TelemetryChart';
@@ -29,7 +29,8 @@ interface EventEntry {
   message: string;
 }
 
-const TARGET_POWER = 4.42; // W — steady-state target
+const TARGET_POWER = 4.42;
+const POLL_MS = 2000;
 
 export default function DashboardPage() {
   const [latest, setLatest] = useState<TelemetryFrame | null>(null);
@@ -48,8 +49,10 @@ export default function DashboardPage() {
 
       if (telRes.ok) {
         const data = await telRes.json();
-        prevRef.current = latest;
-        setLatest(data);
+        setLatest((prev) => {
+          prevRef.current = prev;
+          return data;
+        });
       }
       if (histRes.ok) {
         const data = await histRes.json();
@@ -64,13 +67,13 @@ export default function DashboardPage() {
       setError('Connection lost');
       console.error('Fetch error:', e);
     }
-  }, [latest]);
+  }, []);
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 1000);
+    const interval = setInterval(fetchData, POLL_MS);
     return () => clearInterval(interval);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchData]);
 
   const prev = prevRef.current;
   const trend = (key: keyof TelemetryFrame): number | undefined => {
@@ -81,10 +84,11 @@ export default function DashboardPage() {
   };
 
   const efficiency = latest ? (latest.received_power / TARGET_POWER) * 100 : 0;
-  const sparkVoltage = history.slice(-20).map(f => f.receiver_voltage);
-  const sparkPower = history.slice(-20).map(f => f.received_power);
-  const sparkTemp = history.slice(-20).map(f => f.temperature_c);
-  const sparkEnergy = history.slice(-20).map(f => f.energy_delivered_j);
+
+  const sparkVoltage = useMemo(() => history.slice(-20).map(f => f.receiver_voltage), [history]);
+  const sparkPower = useMemo(() => history.slice(-20).map(f => f.received_power), [history]);
+  const sparkTemp = useMemo(() => history.slice(-20).map(f => f.temperature_c), [history]);
+  const sparkEnergy = useMemo(() => history.slice(-20).map(f => f.energy_delivered_j), [history]);
 
   return (
     <div className="fade-in">
@@ -99,7 +103,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Beam Health Bar */}
       <div className="beam-health-bar">
         <span className="beam-health-label">System Status</span>
         <span className={`check ${latest?.transmitter_on ? 'go' : 'nogo'}`}>TX</span>
@@ -112,126 +115,26 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Stat Cards */}
       <div className="stat-grid">
-        <StatCard
-          label="Received Power"
-          value={latest?.received_power ?? 0}
-          unit="W"
-          accentColor="var(--chart-power)"
-          trend={trend('received_power')}
-          icon="☀"
-          sparkline={sparkPower}
-        />
-        <StatCard
-          label="Efficiency"
-          value={efficiency}
-          unit="%"
-          accentColor="var(--gradient-beam)"
-          alert={efficiency > 0 && efficiency < 30}
-          sub={efficiency > 0 ? (efficiency >= 80 ? 'Excellent' : efficiency >= 50 ? 'Good' : 'Low') : '—'}
-          icon="◎"
-        />
-        <StatCard
-          label="Receiver Voltage"
-          value={latest?.receiver_voltage ?? 0}
-          unit="V"
-          accentColor="var(--chart-voltage)"
-          trend={trend('receiver_voltage')}
-          sparkline={sparkVoltage}
-          icon="⚡"
-        />
-        <StatCard
-          label="Receiver Current"
-          value={latest?.receiver_current ?? 0}
-          unit="A"
-          accentColor="var(--chart-current)"
-          trend={trend('receiver_current')}
-          icon="⟳"
-        />
-        <StatCard
-          label="Supercap Voltage"
-          value={latest?.supercap_voltage ?? 0}
-          unit="V"
-          accentColor="var(--chart-supercap)"
-          sub={latest ? `${((latest.supercap_voltage / 2.7) * 100).toFixed(0)}% charged` : undefined}
-          icon="🔋"
-        />
-        <StatCard
-          label="Energy Delivered"
-          value={latest?.energy_delivered_j ?? 0}
-          unit="J"
-          accentColor="var(--chart-energy)"
-          sparkline={sparkEnergy}
-          icon="∑"
-        />
-        <StatCard
-          label="Temperature"
-          value={latest?.temperature_c ?? 0}
-          unit="°C"
-          sub={latest && latest.temperature_c > 45 ? '⚠ High' : 'Normal'}
-          accentColor="var(--chart-temp)"
-          alert={latest ? latest.temperature_c > 45 : false}
-          trend={trend('temperature_c')}
-          sparkline={sparkTemp}
-          icon="🌡"
-        />
-        <StatCard
-          label="Distance"
-          value={latest?.distance_cm ?? 0}
-          unit="cm"
-          accentColor="var(--gradient-beam)"
-          trend={trend('distance_cm')}
-          icon="↔"
-        />
+        <StatCard label="Received Power" value={latest?.received_power ?? 0} unit="W" accentColor="var(--chart-power)" trend={trend('received_power')} icon="☀" sparkline={sparkPower} />
+        <StatCard label="Efficiency" value={efficiency} unit="%" accentColor="var(--gradient-beam)" alert={efficiency > 0 && efficiency < 30} sub={efficiency > 0 ? (efficiency >= 80 ? 'Excellent' : efficiency >= 50 ? 'Good' : 'Low') : '—'} icon="◎" />
+        <StatCard label="Receiver Voltage" value={latest?.receiver_voltage ?? 0} unit="V" accentColor="var(--chart-voltage)" trend={trend('receiver_voltage')} sparkline={sparkVoltage} icon="⚡" />
+        <StatCard label="Receiver Current" value={latest?.receiver_current ?? 0} unit="A" accentColor="var(--chart-current)" trend={trend('receiver_current')} icon="⟳" />
+        <StatCard label="Supercap Voltage" value={latest?.supercap_voltage ?? 0} unit="V" accentColor="var(--chart-supercap)" sub={latest ? `${((latest.supercap_voltage / 2.7) * 100).toFixed(0)}% charged` : undefined} icon="🔋" />
+        <StatCard label="Energy Delivered" value={latest?.energy_delivered_j ?? 0} unit="J" accentColor="var(--chart-energy)" sparkline={sparkEnergy} icon="∑" />
+        <StatCard label="Temperature" value={latest?.temperature_c ?? 0} unit="°C" sub={latest && latest.temperature_c > 45 ? '⚠ High' : 'Normal'} accentColor="var(--chart-temp)" alert={latest ? latest.temperature_c > 45 : false} trend={trend('temperature_c')} sparkline={sparkTemp} icon="🌡" />
+        <StatCard label="Distance" value={latest?.distance_cm ?? 0} unit="cm" accentColor="var(--gradient-beam)" trend={trend('distance_cm')} icon="↔" />
       </div>
 
-      {/* Charts */}
-      <div className="section-title">
-        <span className="icon">📊</span> Live Telemetry
-      </div>
+      <div className="section-title"><span className="icon">📊</span> Live Telemetry</div>
       <div className="chart-grid">
-        <TelemetryChart
-          data={history}
-          dataKey="receiver_voltage"
-          color="#60a5fa"
-          label="Voltage"
-          unit="V"
-          currentValue={latest?.receiver_voltage}
-          referenceThreshold={{ value: 5.2, label: 'Target', color: 'rgba(96,165,250,0.4)' }}
-        />
-        <TelemetryChart
-          data={history}
-          dataKey="receiver_current"
-          color="#34d399"
-          label="Current"
-          unit="A"
-          currentValue={latest?.receiver_current}
-        />
-        <TelemetryChart
-          data={history}
-          dataKey="received_power"
-          color="#fbbf24"
-          label="Power"
-          unit="W"
-          currentValue={latest?.received_power}
-          referenceThreshold={{ value: TARGET_POWER, label: 'Target', color: 'rgba(251,191,36,0.4)' }}
-        />
-        <TelemetryChart
-          data={history}
-          dataKey="supercap_voltage"
-          color="#a78bfa"
-          label="Supercap"
-          unit="V"
-          currentValue={latest?.supercap_voltage}
-          yDomain={[0, 2.7]}
-        />
+        <TelemetryChart data={history} dataKey="receiver_voltage" color="#58a6ff" label="Voltage" unit="V" currentValue={latest?.receiver_voltage} referenceThreshold={{ value: 5.2, label: 'Target', color: 'rgba(88,166,255,0.4)' }} />
+        <TelemetryChart data={history} dataKey="receiver_current" color="#3fb950" label="Current" unit="A" currentValue={latest?.receiver_current} />
+        <TelemetryChart data={history} dataKey="received_power" color="#f5a623" label="Power" unit="W" currentValue={latest?.received_power} referenceThreshold={{ value: TARGET_POWER, label: 'Target', color: 'rgba(245,166,35,0.4)' }} />
+        <TelemetryChart data={history} dataKey="supercap_voltage" color="#bc8cff" label="Supercap" unit="V" currentValue={latest?.supercap_voltage} yDomain={[0, 2.7]} />
       </div>
 
-      {/* Recent Events */}
-      <div className="section-title" style={{ marginTop: 8 }}>
-        <span className="icon">📋</span> Recent Events
-      </div>
+      <div className="section-title" style={{ marginTop: 8 }}><span className="icon">📋</span> Recent Events</div>
       <EventLog events={events} maxItems={8} />
     </div>
   );

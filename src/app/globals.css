@@ -247,8 +247,7 @@ body::before {
   align-items: center;
   justify-content: space-between;
   padding: var(--space-md) var(--space-xl);
-  background: rgba(22, 27, 34, 0.85);
-  backdrop-filter: blur(16px);
+  background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-primary);
   position: sticky;
   top: 0;
@@ -673,8 +672,8 @@ body::before {
 
 /* ─── Animations ─────────────────────────────────────────────────────────── */
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 8px rgba(245, 166, 35, 0.3); }
-  50% { box-shadow: 0 0 16px rgba(245, 166, 35, 0.6); }
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
 }
 
 @keyframes pulse-dot {

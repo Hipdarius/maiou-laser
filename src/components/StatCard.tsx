@@ -1,5 +1,7 @@
 'use client';
 
+import { memo } from 'react';
+
 interface StatCardProps {
     label: string;
     value: string | number;
@@ -38,16 +40,13 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
     );
 }
 
-export default function StatCard({ label, value, unit, sub, accentColor, trend, trendUnit, alert, icon, sparkline }: StatCardProps) {
+function StatCard({ label, value, unit, sub, accentColor, trend, trendUnit, alert, icon, sparkline }: StatCardProps) {
     const trendDir = trend == null ? null : Math.abs(trend) < 0.001 ? 'stable' : trend > 0 ? 'up' : 'down';
     const trendSymbol = trendDir === 'up' ? '▲' : trendDir === 'down' ? '▼' : '—';
     const trendDisplay = trend != null ? `${trendSymbol} ${Math.abs(trend) >= 1 ? Math.abs(trend).toFixed(1) : Math.abs(trend).toFixed(3)}${trendUnit ?? unit ?? ''}` : null;
 
     return (
-        <div
-            className={`stat-card${alert ? ' stat-card--alert' : ''}`}
-            style={accentColor ? { '--card-accent': accentColor } as React.CSSProperties : undefined}
-        >
+        <div className={`stat-card${alert ? ' stat-card--alert' : ''}`} style={accentColor ? { '--card-accent': accentColor } as React.CSSProperties : undefined}>
             {icon && <span className="stat-icon">{icon}</span>}
             <div className="stat-label">{label}</div>
             <div className="stat-value">
@@ -55,12 +54,10 @@ export default function StatCard({ label, value, unit, sub, accentColor, trend, 
                 {unit && <span className="stat-unit">{unit}</span>}
             </div>
             {sub && <div className="stat-sub">{sub}</div>}
-            {trendDisplay && (
-                <div className={`stat-trend ${trendDir}`}>{trendDisplay}</div>
-            )}
-            {sparkline && sparkline.length > 1 && (
-                <Sparkline data={sparkline} color={accentColor ?? '#60a5fa'} />
-            )}
+            {trendDisplay && <div className={`stat-trend ${trendDir}`}>{trendDisplay}</div>}
+            {sparkline && sparkline.length > 1 && <Sparkline data={sparkline} color={accentColor ?? '#58a6ff'} />}
         </div>
     );
 }
+
+export default memo(StatCard);

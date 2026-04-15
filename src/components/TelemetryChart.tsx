@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
@@ -25,18 +26,16 @@ interface TelemetryChartProps {
     yDomain?: [number | 'auto', number | 'auto'];
 }
 
-export default function TelemetryChart({
+const formatTime = (ts: unknown) => {
+    if (!ts || typeof ts !== 'string') return '';
+    const d = new Date(ts);
+    return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+};
+
+function TelemetryChart({
     data, dataKey, color, label, unit = '', height = 200,
     currentValue, referenceThreshold, yDomain,
 }: TelemetryChartProps) {
-    const formatTime = (ts: unknown) => {
-        if (!ts || typeof ts !== 'string') return '';
-        const d = new Date(ts);
-        return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    };
-
-    const disableAnimation = data.length > 100;
-
     return (
         <div className="chart-card">
             <div className="chart-card-header">
@@ -55,29 +54,12 @@ export default function TelemetryChart({
                             <stop offset="100%" stopColor={color} stopOpacity={0.02} />
                         </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,41,59,0.8)" />
-                    <XAxis
-                        dataKey="timestamp"
-                        tickFormatter={formatTime}
-                        stroke="#334155"
-                        tick={{ fontSize: 10, fill: '#64748b' }}
-                        interval="preserveStartEnd"
-                    />
-                    <YAxis
-                        stroke="#334155"
-                        tick={{ fontSize: 10, fill: '#64748b' }}
-                        width={45}
-                        domain={yDomain}
-                    />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.8)" />
+                    <XAxis dataKey="timestamp" tickFormatter={formatTime} stroke="#30363d" tick={{ fontSize: 10, fill: '#6e7681' }} interval="preserveStartEnd" />
+                    <YAxis stroke="#30363d" tick={{ fontSize: 10, fill: '#6e7681' }} width={45} domain={yDomain} />
                     <Tooltip
-                        contentStyle={{
-                            background: '#1c2128',
-                            border: '1px solid #30363d',
-                            borderRadius: '8px',
-                            fontSize: '12px',
-                            color: '#e2e8f0',
-                        }}
-                        cursor={{ stroke: 'rgba(255,255,255,0.08)', strokeWidth: 1 }}
+                        contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: '8px', fontSize: '12px', color: '#e6edf3' }}
+                        cursor={{ stroke: 'rgba(255,255,255,0.06)', strokeWidth: 1 }}
                         labelFormatter={formatTime}
                         formatter={(value: unknown) => {
                             const num = typeof value === 'number' ? value : 0;
@@ -85,25 +67,13 @@ export default function TelemetryChart({
                         }}
                     />
                     {referenceThreshold && (
-                        <ReferenceLine
-                            y={referenceThreshold.value}
-                            stroke={referenceThreshold.color ?? '#f87171'}
-                            strokeDasharray="4 2"
-                            label={{ value: referenceThreshold.label, fill: '#94a3b8', fontSize: 10, position: 'insideTopRight' }}
-                        />
+                        <ReferenceLine y={referenceThreshold.value} stroke={referenceThreshold.color ?? '#f85149'} strokeDasharray="4 2" label={{ value: referenceThreshold.label, fill: '#8b949e', fontSize: 10, position: 'insideTopRight' }} />
                     )}
-                    <Area
-                        type="monotone"
-                        dataKey={dataKey}
-                        stroke={color}
-                        strokeWidth={2}
-                        fill={`url(#grad-${dataKey})`}
-                        dot={false}
-                        isAnimationActive={!disableAnimation}
-                        animationDuration={300}
-                    />
+                    <Area type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2} fill={`url(#grad-${dataKey})`} dot={false} isAnimationActive={false} />
                 </AreaChart>
             </ResponsiveContainer>
         </div>
     );
 }
+
+export default memo(TelemetryChart);

@@ -13,6 +13,8 @@ interface EventEntry {
 
 type FilterType = 'all' | 'info' | 'warning' | 'critical';
 
+const POLL_MS = 3000;
+
 export default function EventsPage() {
     const [events, setEvents] = useState<EventEntry[]>([]);
     const [filter, setFilter] = useState<FilterType>('all');
@@ -32,7 +34,7 @@ export default function EventsPage() {
 
     useEffect(() => {
         fetchData();
-        const interval = setInterval(fetchData, 2000);
+        const interval = setInterval(fetchData, POLL_MS);
         return () => clearInterval(interval);
     }, [fetchData]);
 
@@ -43,7 +45,6 @@ export default function EventsPage() {
         critical: events.filter(e => e.type === 'critical').length,
     };
 
-    // Auto-scroll to top on new critical event
     useEffect(() => {
         if (counts.critical > prevCriticalCount.current) {
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -69,11 +70,7 @@ export default function EventsPage() {
 
             <div className="btn-group">
                 {filterButtons.map(({ type, activeClass }) => (
-                    <button
-                        key={type}
-                        onClick={() => setFilter(type)}
-                        className={`btn${filter === type ? ` ${activeClass}` : ''}`}
-                    >
+                    <button key={type} onClick={() => setFilter(type)} className={`btn${filter === type ? ` ${activeClass}` : ''}`}>
                         {type.charAt(0).toUpperCase() + type.slice(1)}
                         <span className="event-count-badge">{counts[type]}</span>
                     </button>
