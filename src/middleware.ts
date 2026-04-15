@@ -8,6 +8,7 @@ const PUBLIC_API_PATHS = [
     '/api/telemetry',
     '/api/telemetry/history',
     '/api/events',
+    '/api/health',
 ];
 
 export async function middleware(request: NextRequest) {
