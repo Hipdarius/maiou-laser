@@ -2,10 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-provider';
 import { getSessionCookieName, getSessionCookieOptions } from '@/lib/auth';
 
-// Simple in-memory rate limiter
+// Simple in-memory rate limiter (per serverless instance)
 const attempts = new Map<string, { count: number; resetAt: number }>();
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_ATTEMPTS = 15;
+const WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+function getClientIp(request: NextRequest): string {
+    const forwarded = request.headers.get('x-forwarded-for');
+    if (forwarded) return forwarded.split(',')[0].trim();
+    return request.headers.get('x-real-ip') || 'unknown';
+}
 
 function checkRateLimit(key: string): boolean {
     const now = Date.now();
@@ -20,9 +26,9 @@ function checkRateLimit(key: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
-    const ip = request.headers.get('x-forwarded-for') || 'unknown';
+    const ip = getClientIp(request);
     if (!checkRateLimit(ip)) {
-        return NextResponse.json({ error: 'Too many login attempts. Try again in 15 minutes.' }, { status: 429 });
+        return NextResponse.json({ error: 'Too many login attempts. Try again in 5 minutes.' }, { status: 429 });
     }
 
     const { email, password } = await request.json();
