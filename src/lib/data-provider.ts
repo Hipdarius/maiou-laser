@@ -14,10 +14,10 @@ async function getSupabaseServer() {
 
 async function sbInsertTelemetry(frame: TelemetryFrame, userId?: number): Promise<void> {
     const sb = await getSupabaseServer();
-    await sb.from('telemetry').insert({
+    const { error } = await sb.from('telemetry').insert({
         session_id: frame.session_id,
         timestamp: frame.timestamp,
-        user_id: userId || 1,
+        user_id: userId || null, // nullable — simulator has no user
         transmitter_on: frame.transmitter_on,
         beam_locked: frame.beam_locked,
         safety_ok: frame.safety_ok,
@@ -29,24 +29,36 @@ async function sbInsertTelemetry(frame: TelemetryFrame, userId?: number): Promis
         distance_cm: frame.distance_cm,
         temperature_c: frame.temperature_c,
     });
+    if (error) {
+        console.error('[Data] Supabase insertTelemetry error:', error.message, error.code);
+    }
 }
 
 async function sbGetLatestTelemetry(): Promise<TelemetryFrame | null> {
     const sb = await getSupabaseServer();
-    const { data } = await sb.from('telemetry')
+    const { data, error } = await sb.from('telemetry')
         .select('*')
         .order('id', { ascending: false })
         .limit(1)
         .single();
+    if (error) {
+        if (error.code === 'PGRST116') return null; // no rows
+        console.error('[Data] Supabase getLatestTelemetry error:', error.message);
+        return null;
+    }
     return data ? sbRowToFrame(data) : null;
 }
 
 async function sbGetTelemetryHistory(limit: number = 60): Promise<TelemetryFrame[]> {
     const sb = await getSupabaseServer();
-    const { data } = await sb.from('telemetry')
+    const { data, error } = await sb.from('telemetry')
         .select('*')
         .order('id', { ascending: false })
         .limit(limit);
+    if (error) {
+        console.error('[Data] Supabase getTelemetryHistory error:', error.message);
+        return [];
+    }
     return (data || []).map(sbRowToFrame).reverse();
 }
 
@@ -69,42 +81,57 @@ function sbRowToFrame(row: Record<string, unknown>): TelemetryFrame {
 
 async function sbInsertEvent(event: EventEntry, userId?: number): Promise<void> {
     const sb = await getSupabaseServer();
-    await sb.from('events').insert({
+    const { error } = await sb.from('events').insert({
         session_id: event.session_id,
         timestamp: event.timestamp,
-        user_id: userId || 1,
+        user_id: userId || null, // nullable — simulator has no user
         type: event.type,
         message: event.message,
     });
+    if (error) {
+        console.error('[Data] Supabase insertEvent error:', error.message, error.code);
+    }
 }
 
 async function sbGetEvents(limit: number = 50): Promise<EventEntry[]> {
     const sb = await getSupabaseServer();
-    const { data } = await sb.from('events')
+    const { data, error } = await sb.from('events')
         .select('*')
         .order('id', { ascending: false })
         .limit(limit);
+    if (error) {
+        console.error('[Data] Supabase getEvents error:', error.message);
+        return [];
+    }
     return (data || []) as EventEntry[];
 }
 
 async function sbGetEventsBySession(sessionId: string): Promise<EventEntry[]> {
     const sb = await getSupabaseServer();
-    const { data } = await sb.from('events')
+    const { data, error } = await sb.from('events')
         .select('*')
         .eq('session_id', sessionId)
         .order('id', { ascending: false });
+    if (error) {
+        console.error('[Data] Supabase getEventsBySession error:', error.message);
+        return [];
+    }
     return (data || []) as EventEntry[];
 }
 
 async function sbGetSessionSummaries(): Promise<SessionSummary[]> {
     const sb = await getSupabaseServer();
-    // Use raw SQL via RPC or aggregate manually
-    const { data: sessions } = await sb.from('telemetry')
+
+    // Get distinct session IDs (most recent first)
+    const { data: sessions, error: sessError } = await sb.from('telemetry')
         .select('session_id')
         .order('id', { ascending: false })
         .limit(1000);
 
-    if (!sessions || sessions.length === 0) return [];
+    if (sessError || !sessions || sessions.length === 0) {
+        if (sessError) console.error('[Data] Supabase getSessionSummaries error:', sessError.message);
+        return [];
+    }
 
     const uniqueSessions = [...new Set(sessions.map(s => s.session_id))].slice(0, 50);
     const summaries: SessionSummary[] = [];
@@ -134,14 +161,18 @@ async function sbGetSessionSummaries(): Promise<SessionSummary[]> {
     return summaries;
 }
 
-// ─── Device operations (Supabase) ──────────────────────────────────────────
+// ─── Device operations (Supabase only) ────────────────────────────────────
 
 async function sbGetDevices(userId: number): Promise<Device[]> {
     const sb = await getSupabaseServer();
-    const { data } = await sb.from('devices')
+    const { data, error } = await sb.from('devices')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
+    if (error) {
+        console.error('[Data] Supabase getDevices error:', error.message);
+        return [];
+    }
     return (data || []) as Device[];
 }
 
@@ -156,7 +187,10 @@ async function sbCreateDevice(userId: number, name: string, type: string): Promi
         api_key: apiKey,
         config: {},
     }).select('*').single();
-    if (error) throw new Error(error.message);
+    if (error) {
+        console.error('[Data] Supabase createDevice error:', error.message);
+        throw new Error(error.message);
+    }
     return data as Device;
 }
 
@@ -168,22 +202,34 @@ async function sbUpdateDevice(id: number, fields: Partial<Device>): Promise<void
     if (fields.firmware_version !== undefined) update.firmware_version = fields.firmware_version;
     if (fields.config !== undefined) update.config = fields.config;
     if (fields.last_seen_at !== undefined) update.last_seen_at = fields.last_seen_at;
-    await sb.from('devices').update(update).eq('id', id);
+    const { error } = await sb.from('devices').update(update).eq('id', id);
+    if (error) console.error('[Data] Supabase updateDevice error:', error.message);
 }
 
 async function sbDeleteDevice(id: number): Promise<void> {
     const sb = await getSupabaseServer();
-    await sb.from('devices').delete().eq('id', id);
+    const { error } = await sb.from('devices').delete().eq('id', id);
+    if (error) console.error('[Data] Supabase deleteDevice error:', error.message);
 }
 
 // ─── SQLite implementations ────────────────────────────────────────────────
 
 function getSqlite() {
     try {
-        const { insertTelemetry, getLatestTelemetry, getTelemetryHistory, insertEvent, getEvents, getEventsBySession, getSessionSummaries } = require('./db');
-        return { insertTelemetry, getLatestTelemetry, getTelemetryHistory, insertEvent, getEvents, getEventsBySession, getSessionSummaries };
-    } catch {
-        throw new Error('SQLite not available — set Supabase env vars for production');
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const mod = require('./db');
+        return {
+            insertTelemetry: mod.insertTelemetry,
+            getLatestTelemetry: mod.getLatestTelemetry,
+            getTelemetryHistory: mod.getTelemetryHistory,
+            insertEvent: mod.insertEvent,
+            getEvents: mod.getEvents,
+            getEventsBySession: mod.getEventsBySession,
+            getSessionSummaries: mod.getSessionSummaries,
+        };
+    } catch (e) {
+        console.error('[Data] SQLite not available:', (e as Error).message);
+        throw new Error('Database not available — set Supabase env vars for production');
     }
 }
 

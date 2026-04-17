@@ -15,9 +15,14 @@ function hashPassword(password: string): string {
 }
 
 function verifyPassword(password: string, stored: string): boolean {
-    const [salt, hash] = stored.split(':');
-    const verify = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-    return hash === verify;
+    try {
+        const [salt, hash] = stored.split(':');
+        if (!salt || !hash) return false;
+        const verify = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+        return hash === verify;
+    } catch {
+        return false;
+    }
 }
 
 // ─── Supabase implementation ────────────────────────────────────────────────
@@ -33,27 +38,46 @@ async function supabaseCreateUser(email: string, name: string, password: string,
     const { data, error } = await sb.from('users').insert({
         email, name, company: company || '', password_hash: passwordHash,
     }).select('id, email, name, company, created_at').single();
-    if (error) throw new Error(error.message);
+    if (error) {
+        console.error('[Auth] Supabase createUser error:', error.message, error.code);
+        throw new Error(`Failed to create user: ${error.message}`);
+    }
     return data as User;
 }
 
 async function supabaseAuthenticateUser(email: string, password: string): Promise<User | null> {
     const sb = await getSupabaseServer();
-    const { data } = await sb.from('users').select('*').eq('email', email).single();
+    const { data, error } = await sb.from('users').select('*').eq('email', email).single();
+    if (error) {
+        // PGRST116 = no rows found (not an error for auth)
+        if (error.code === 'PGRST116') return null;
+        console.error('[Auth] Supabase authenticateUser error:', error.message, error.code);
+        throw new Error(`Authentication failed: ${error.message}`);
+    }
     if (!data) return null;
     if (!verifyPassword(password, data.password_hash)) return null;
-    return { id: data.id, email: data.email, name: data.name, company: data.company, created_at: data.created_at };
+    return { id: data.id, email: data.email, name: data.name, company: data.company || '', created_at: data.created_at };
 }
 
 async function supabaseGetUserById(id: number): Promise<User | null> {
     const sb = await getSupabaseServer();
-    const { data } = await sb.from('users').select('id, email, name, company, created_at').eq('id', id).single();
+    const { data, error } = await sb.from('users').select('id, email, name, company, created_at').eq('id', id).single();
+    if (error) {
+        if (error.code === 'PGRST116') return null;
+        console.error('[Auth] Supabase getUserById error:', error.message);
+        return null;
+    }
     return data as User | null;
 }
 
 async function supabaseGetUserByEmail(email: string): Promise<User | null> {
     const sb = await getSupabaseServer();
-    const { data } = await sb.from('users').select('id, email, name, company, created_at').eq('email', email).single();
+    const { data, error } = await sb.from('users').select('id, email, name, company, created_at').eq('email', email).single();
+    if (error) {
+        if (error.code === 'PGRST116') return null;
+        console.error('[Auth] Supabase getUserByEmail error:', error.message);
+        return null;
+    }
     return data as User | null;
 }
 
@@ -62,20 +86,33 @@ async function supabaseUpdateUser(id: number, fields: { name?: string; company?:
     const update: Record<string, string> = {};
     if (fields.name !== undefined) update.name = fields.name;
     if (fields.company !== undefined) update.company = fields.company;
-    await sb.from('users').update(update).eq('id', id);
+    const { error } = await sb.from('users').update(update).eq('id', id);
+    if (error) {
+        console.error('[Auth] Supabase updateUser error:', error.message);
+        throw new Error(`Failed to update user: ${error.message}`);
+    }
 }
 
 async function supabaseCreateSession(userId: number): Promise<string> {
     const sb = await getSupabaseServer();
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    await sb.from('auth_sessions').insert({ token, user_id: userId, expires_at: expiresAt });
+    const { error } = await sb.from('auth_sessions').insert({ token, user_id: userId, expires_at: expiresAt });
+    if (error) {
+        console.error('[Auth] Supabase createSession error:', error.message, error.code);
+        throw new Error(`Failed to create session: ${error.message}`);
+    }
     return token;
 }
 
 async function supabaseGetUserFromToken(token: string): Promise<User | null> {
     const sb = await getSupabaseServer();
-    const { data } = await sb.from('auth_sessions').select('user_id, expires_at').eq('token', token).single();
+    const { data, error } = await sb.from('auth_sessions').select('user_id, expires_at').eq('token', token).single();
+    if (error) {
+        if (error.code === 'PGRST116') return null;
+        console.error('[Auth] Supabase getUserFromToken error:', error.message);
+        return null;
+    }
     if (!data) return null;
     if (new Date(data.expires_at) < new Date()) return null;
     return supabaseGetUserById(data.user_id);
@@ -83,31 +120,46 @@ async function supabaseGetUserFromToken(token: string): Promise<User | null> {
 
 async function supabaseDeleteSession(token: string): Promise<void> {
     const sb = await getSupabaseServer();
-    await sb.from('auth_sessions').delete().eq('token', token);
+    const { error } = await sb.from('auth_sessions').delete().eq('token', token);
+    if (error) {
+        console.error('[Auth] Supabase deleteSession error:', error.message);
+    }
 }
 
 async function supabaseIsValidInviteCode(code: string): Promise<boolean> {
     const sb = await getSupabaseServer();
-    const { data } = await sb.from('invite_codes').select('id').eq('code', code).eq('used', false).single();
+    const { data, error } = await sb.from('invite_codes').select('id').eq('code', code).eq('used', false).single();
+    if (error) {
+        if (error.code === 'PGRST116') return false;
+        console.error('[Auth] Supabase isValidInviteCode error:', error.message);
+        return false;
+    }
     return !!data;
 }
 
 async function supabaseUseInviteCode(code: string): Promise<boolean> {
     const sb = await getSupabaseServer();
-    const { data } = await sb.from('invite_codes').select('id').eq('code', code).eq('used', false).single();
-    if (!data) return false;
-    await sb.from('invite_codes').update({ used: true, used_at: new Date().toISOString() }).eq('id', data.id);
+    const { data, error } = await sb.from('invite_codes').select('id').eq('code', code).eq('used', false).single();
+    if (error || !data) return false;
+    const { error: updateError } = await sb.from('invite_codes').update({ used: true, used_at: new Date().toISOString() }).eq('id', data.id);
+    if (updateError) {
+        console.error('[Auth] Supabase useInviteCode error:', updateError.message);
+        return false;
+    }
     return true;
 }
 
 // ─── SQLite implementation ──────────────────────────────────────────────────
 
 function getSqliteDb() {
+    // Dynamic require so it doesn't crash on Vercel (better-sqlite3 is native)
     try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { getDb } = require('./db');
         return getDb();
-    } catch {
-        throw new Error('SQLite not available — set Supabase env vars for production');
+    } catch (e) {
+        console.error('[Auth] SQLite not available:', (e as Error).message);
+        throw new Error('Database not available — set Supabase env vars for production');
     }
 }
 

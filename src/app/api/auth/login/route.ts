@@ -37,13 +37,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    const user = await auth.authenticateUser(email, password);
-    if (!user) {
-        return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
-    }
+    try {
+        const user = await auth.authenticateUser(email, password);
+        if (!user) {
+            return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+        }
 
-    const token = await auth.createSession(user.id);
-    const response = NextResponse.json({ user });
-    response.cookies.set(getSessionCookieName(), token, getSessionCookieOptions());
-    return response;
+        const token = await auth.createSession(user.id);
+        const response = NextResponse.json({ user });
+        response.cookies.set(getSessionCookieName(), token, getSessionCookieOptions());
+        return response;
+    } catch (e) {
+        console.error('[Login] Error:', (e as Error).message);
+        return NextResponse.json(
+            { error: 'Unable to connect to database. Please try again or contact support.' },
+            { status: 503 }
+        );
+    }
 }
