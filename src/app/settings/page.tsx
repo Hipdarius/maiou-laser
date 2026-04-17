@@ -14,7 +14,7 @@ export default function SettingsPage() {
     const [user, setUser] = useState<UserInfo | null>(null);
     const [name, setName] = useState('');
     const [company, setCompany] = useState('');
-    const [saved, setSaved] = useState(false);
+    const [toast, setToast] = useState(false);
     const [saving, setSaving] = useState(false);
 
     const fetchUser = useCallback(async () => {
@@ -32,15 +32,15 @@ export default function SettingsPage() {
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
-        setSaved(false);
+        setToast(false);
         await fetch('/api/auth/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, company }),
         });
         setSaving(false);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
+        setToast(true);
+        setTimeout(() => setToast(false), 3000);
     };
 
     return (
@@ -55,8 +55,9 @@ export default function SettingsPage() {
                     <h3>Account Information</h3>
                     <form className="auth-form" onSubmit={handleSave}>
                         <div className="form-group">
-                            <label>Full Name</label>
+                            <label htmlFor="settingsName">Full Name</label>
                             <input
+                                id="settingsName"
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
@@ -64,12 +65,13 @@ export default function SettingsPage() {
                             />
                         </div>
                         <div className="form-group">
-                            <label>Email</label>
-                            <input type="email" value={user?.email ?? ''} disabled style={{ opacity: 0.5 }} />
+                            <label htmlFor="settingsEmail">Email</label>
+                            <input id="settingsEmail" type="email" value={user?.email ?? ''} disabled style={{ opacity: 0.5, cursor: 'not-allowed' }} />
                         </div>
                         <div className="form-group">
-                            <label>Company</label>
+                            <label htmlFor="settingsCompany">Company</label>
                             <input
+                                id="settingsCompany"
                                 type="text"
                                 value={company}
                                 onChange={(e) => setCompany(e.target.value)}
@@ -77,7 +79,7 @@ export default function SettingsPage() {
                             />
                         </div>
                         <button type="submit" className="btn-primary" disabled={saving}>
-                            {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Changes'}
+                            {saving ? 'Saving...' : 'Save Changes'}
                         </button>
                     </form>
                 </div>
@@ -118,6 +120,8 @@ export default function SettingsPage() {
                     </div>
                 </div>
             </div>
+
+            {toast && <div className="toast">Changes saved successfully</div>}
         </div>
     );
 }

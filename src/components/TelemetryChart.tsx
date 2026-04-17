@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState, useEffect } from 'react';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
@@ -36,6 +36,25 @@ function TelemetryChart({
     data, dataKey, color, label, unit = '', height = 200,
     currentValue, referenceThreshold, yDomain,
 }: TelemetryChartProps) {
+    const [isLight, setIsLight] = useState(false);
+
+    useEffect(() => {
+        const check = () => setIsLight(document.documentElement.getAttribute('data-theme') === 'light');
+        check();
+        const observer = new MutationObserver(check);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        return () => observer.disconnect();
+    }, []);
+
+    const gridColor = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(48,54,61,0.8)';
+    const axisColor = isLight ? '#d0d7de' : '#30363d';
+    const tickColor = isLight ? '#656d76' : '#6e7681';
+    const tooltipBg = isLight ? '#ffffff' : '#1c2128';
+    const tooltipBorder = isLight ? '#d0d7de' : '#30363d';
+    const tooltipText = isLight ? '#1f2328' : '#e6edf3';
+    const cursorColor = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)';
+    const refLabelColor = isLight ? '#656d76' : '#8b949e';
+
     return (
         <div className="chart-card">
             <div className="chart-card-header">
@@ -50,16 +69,16 @@ function TelemetryChart({
                 <AreaChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                     <defs>
                         <linearGradient id={`grad-${dataKey}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+                            <stop offset="0%" stopColor={color} stopOpacity={isLight ? 0.2 : 0.3} />
                             <stop offset="100%" stopColor={color} stopOpacity={0.02} />
                         </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.8)" />
-                    <XAxis dataKey="timestamp" tickFormatter={formatTime} stroke="#30363d" tick={{ fontSize: 10, fill: '#6e7681' }} interval="preserveStartEnd" />
-                    <YAxis stroke="#30363d" tick={{ fontSize: 10, fill: '#6e7681' }} width={45} domain={yDomain} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+                    <XAxis dataKey="timestamp" tickFormatter={formatTime} stroke={axisColor} tick={{ fontSize: 10, fill: tickColor }} interval="preserveStartEnd" />
+                    <YAxis stroke={axisColor} tick={{ fontSize: 10, fill: tickColor }} width={45} domain={yDomain} />
                     <Tooltip
-                        contentStyle={{ background: '#1c2128', border: '1px solid #30363d', borderRadius: '8px', fontSize: '12px', color: '#e6edf3' }}
-                        cursor={{ stroke: 'rgba(255,255,255,0.06)', strokeWidth: 1 }}
+                        contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: '8px', fontSize: '12px', color: tooltipText }}
+                        cursor={{ stroke: cursorColor, strokeWidth: 1 }}
                         labelFormatter={formatTime}
                         formatter={(value: unknown) => {
                             const num = typeof value === 'number' ? value : 0;
@@ -67,7 +86,7 @@ function TelemetryChart({
                         }}
                     />
                     {referenceThreshold && (
-                        <ReferenceLine y={referenceThreshold.value} stroke={referenceThreshold.color ?? '#f85149'} strokeDasharray="4 2" label={{ value: referenceThreshold.label, fill: '#8b949e', fontSize: 10, position: 'insideTopRight' }} />
+                        <ReferenceLine y={referenceThreshold.value} stroke={referenceThreshold.color ?? '#f85149'} strokeDasharray="4 2" label={{ value: referenceThreshold.label, fill: refLabelColor, fontSize: 10, position: 'insideTopRight' }} />
                     )}
                     <Area type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2} fill={`url(#grad-${dataKey})`} dot={false} isAnimationActive={false} />
                 </AreaChart>

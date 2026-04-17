@@ -98,9 +98,7 @@ export default function DashboardPage() {
       </div>
 
       {error && (
-        <div className="status-badge critical" style={{ marginBottom: 16 }}>
-          <span className="dot" /> {error}
-        </div>
+        <div className="connection-error">{error} — retrying...</div>
       )}
 
       <div className="beam-health-bar">

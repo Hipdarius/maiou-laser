@@ -34,6 +34,7 @@ export default function Navbar() {
     const [hw, setHw] = useState<HardwareStatus | null>(null);
     const [user, setUser] = useState<User | null>(null);
     const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const fetchSim = useCallback(async () => {
         try {
@@ -71,6 +72,11 @@ export default function Navbar() {
         }
     }, []);
 
+    // Close mobile menu on route change
+    useEffect(() => {
+        setMobileMenuOpen(false);
+    }, [pathname]);
+
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST' });
         router.push('/login');
@@ -96,16 +102,25 @@ export default function Navbar() {
     const initials = user?.name ? user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) : '?';
 
     return (
-        <nav className="navbar">
+        <nav className="navbar" role="navigation" aria-label="Main navigation">
             <Link href="/" className="navbar-brand">
-                <Image src="/lumion-logo.jpg" alt="Lumion" width={36} height={36} className="logo-icon" />
+                <Image src="/lumion-logo.jpg" alt="Lumion" width={36} height={36} className="logo-icon" priority />
                 <div>
                     <h1>Lum<span className="brand-highlight">ion</span></h1>
                     <span className="sub">Wireless Power Through Light</span>
                 </div>
             </Link>
 
-            <div className="navbar-links">
+            <button
+                className="navbar-hamburger"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label="Toggle navigation menu"
+                aria-expanded={mobileMenuOpen}
+            >
+                {mobileMenuOpen ? '✕' : '☰'}
+            </button>
+
+            <div className={`navbar-links${mobileMenuOpen ? ' open' : ''}`}>
                 {links.map((link) => (
                     <Link
                         key={link.href}
@@ -131,15 +146,20 @@ export default function Navbar() {
                     <span className="mono">SIM ACTIVE</span>
                 )}
 
-                <button className="btn-theme-toggle" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
-                    {theme === 'dark' ? '☀' : '🌙'}
+                <button
+                    className="btn-theme-toggle"
+                    onClick={toggleTheme}
+                    title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                    aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
+                    {theme === 'dark' ? '☀' : '☾'}
                 </button>
 
                 {user && (
                     <div className="navbar-user" style={{ marginLeft: 16 }}>
                         <div className="user-avatar">{initials}</div>
                         <span className="user-name">{user.name}</span>
-                        <button className="btn-logout" onClick={handleLogout}>Logout</button>
+                        <button className="btn-logout" onClick={handleLogout} aria-label="Log out">Logout</button>
                     </div>
                 )}
             </div>

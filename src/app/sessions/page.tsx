@@ -60,6 +60,7 @@ export default function SessionsPage() {
                     <p>No sessions recorded yet. The simulator will start automatically.</p>
                 </div>
             ) : (
+                <div className="sessions-table-wrapper">
                 <table className="sessions-table">
                     <thead>
                         <tr>
@@ -86,6 +87,7 @@ export default function SessionsPage() {
                         ))}
                     </tbody>
                 </table>
+                </div>
             )}
         </div>
     );
